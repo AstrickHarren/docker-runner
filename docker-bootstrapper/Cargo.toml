@@ -1,0 +1,12 @@
+[package]
+name = "docker-bootstrapper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bollard = "0.17.0"
+
+[dev-dependencies]
+color-eyre = "0.6.3"
+tokio = { version = "1.39.2", features = ["full"] }
+

@@ -1,0 +1,3 @@
+struct Docker {}
+
+struct A {}
