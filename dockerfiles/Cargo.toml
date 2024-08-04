@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+docker_derive = { version = "0.1.0", path = "../docker_derive" }
+itertools = "0.13.0"
