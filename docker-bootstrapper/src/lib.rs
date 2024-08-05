@@ -1,14 +1,14 @@
+use color_eyre::eyre::{Context, Error};
 use std::io::Write;
 
 use bollard::{
     container::{Config, CreateContainerOptions, RemoveContainerOptions},
-    errors::Error,
     exec::{CreateExecOptions, StartExecResults},
     image::BuildImageOptions,
     Docker,
 };
 use dockerfiles::DockerFile;
-use futures::{future::ready, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{future::ready, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 
 pub struct ImageBuilder<'a> {
     docker_file: &'a DockerFile,
@@ -102,7 +102,8 @@ impl Container {
     }
 
     async fn start(&self, docker: &Docker) -> Result<(), Error> {
-        docker.start_container::<String>(&self.id, None).await
+        docker.start_container::<String>(&self.id, None).await?;
+        Ok(())
     }
 
     async fn rm(&self, docker: &Docker) -> Result<(), Error> {
@@ -114,7 +115,8 @@ impl Container {
                     ..Default::default()
                 }),
             )
-            .await
+            .await?;
+        Ok(())
     }
 
     pub async fn run(
@@ -122,10 +124,15 @@ impl Container {
         docker: &Docker,
         cmd: Option<impl IntoIterator<Item = impl ToString>>,
     ) -> Result<(), Error> {
-        self.start(docker).await?;
-        let exec = self.exec(docker, cmd).await;
-        self.rm(docker).await.and(exec)?;
-        Ok(())
+        let task = self
+            .start(docker)
+            .and_then(|_| self.exec(docker, cmd))
+            .await;
+        let rm = self.rm(docker).await;
+
+        // Perform tasks before report err,
+        // this makes sure `rm` is always tried.
+        task.and(rm)
     }
 
     pub async fn exec(
@@ -153,7 +160,8 @@ impl Container {
                     println!("{x}");
                     futures::future::ready(Ok(()))
                 })
-                .await
+                .await?;
+            Ok(())
         } else {
             unreachable!();
         }
