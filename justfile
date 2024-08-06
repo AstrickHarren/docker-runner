@@ -14,6 +14,6 @@ docker_clean:
 test *ARGS: 
   cargo nextest run {{ARGS}}
 
-test_no_capture: 
-  @ just test --nocapture
+test_no_capture *ARGS: 
+  @ just test --nocapture {{ARGS}}
 

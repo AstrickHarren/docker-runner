@@ -1,3 +1,5 @@
+use std::{env, fmt::Display};
+
 use bollard::{
     container::{Config, CreateContainerOptions},
     errors::Error,
@@ -45,6 +47,24 @@ impl<'a> ContainerBuilder<'a> {
     pub fn with_cmd(mut self, cmd: impl IntoIterator<Item = impl ToString>) -> Self {
         self.config.cmd = Some(cmd.into_iter().map(|x| x.to_string()).collect());
         self
+    }
+
+    pub fn with_bind(mut self, from_local: impl Display, to_container: impl Display) -> Self {
+        let host_config = self
+            .config
+            .host_config
+            .get_or_insert_with(|| Default::default());
+        host_config
+            .binds
+            .get_or_insert_with(|| Default::default())
+            .push(format!("{}:{}", from_local, to_container));
+        self
+    }
+
+    pub fn with_bind_current_exe_dir(self, to_container: impl Display) -> Self {
+        let exe = env::current_exe().unwrap();
+        dbg!(&exe, exe.parent());
+        self.with_bind(exe.parent().unwrap().to_string_lossy(), to_container)
     }
 
     pub async fn build(self, docker: &Docker) -> Result<Container, Error> {
