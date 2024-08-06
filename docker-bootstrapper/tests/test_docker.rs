@@ -11,8 +11,13 @@ async fn test_docker() -> color_eyre::Result<()> {
     };
 
     let img = ImageBuilder::new(&dockerfile).build(&docker).await?;
-    let container = img.create_container("my_container", &docker).await?;
-    container.run(&docker, Some(["ls", "-l", "/"])).await?;
+    let container = img
+        .into_container_builder("my_container")
+        .with_cmd("ls -al /".split(" "))
+        .build(&docker)
+        .await?;
+
+    container.run(&docker).await?;
 
     Ok(())
 }
