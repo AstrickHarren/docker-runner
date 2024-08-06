@@ -1,18 +1,15 @@
 use std::{env, fmt::Display};
 
 use bollard::{
-    container::{Config, CreateContainerOptions},
+    container::{Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions},
     errors::Error,
+    exec::{CreateExecOptions, StartExecResults},
     Docker,
 };
 
 use color_eyre::owo_colors::OwoColorize;
 
-use bollard::{
-    container::{LogsOptions, RemoveContainerOptions},
-    exec::{CreateExecOptions, StartExecResults},
-};
-use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{TryFutureExt, TryStreamExt};
 
 use crate::Image;
 
@@ -50,20 +47,16 @@ impl<'a> ContainerBuilder<'a> {
     }
 
     pub fn with_bind(mut self, from_local: impl Display, to_container: impl Display) -> Self {
-        let host_config = self
-            .config
-            .host_config
-            .get_or_insert_with(|| Default::default());
+        let host_config = self.config.host_config.get_or_insert_with(Default::default);
         host_config
             .binds
-            .get_or_insert_with(|| Default::default())
+            .get_or_insert_with(Default::default)
             .push(format!("{}:{}", from_local, to_container));
         self
     }
 
     pub fn with_bind_current_exe_dir(self, to_container: impl Display) -> Self {
         let exe = env::current_exe().unwrap();
-        dbg!(&exe, exe.parent());
         self.with_bind(exe.parent().unwrap().to_string_lossy(), to_container)
     }
 

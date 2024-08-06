@@ -5,7 +5,6 @@ use docker_bootstrapper::ImageBuilder;
 
 #[tokio::test]
 async fn test_bootstrap() -> color_eyre::Result<()> {
-    println!("hello, world");
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let dockerfile = {

@@ -3,7 +3,7 @@ use std::io::Write;
 
 use bollard::{image::BuildImageOptions, Docker};
 use dockerfiles::DockerFile;
-use futures::{future::ready, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{future::ready, TryStreamExt};
 
 pub struct ImageBuilder<'a> {
     docker_file: &'a DockerFile,
