@@ -2,10 +2,10 @@ use std::{env, fmt::Display};
 
 use bollard::{
     container::{Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions},
-    errors::Error,
     exec::{CreateExecOptions, StartExecResults},
     Docker,
 };
+use color_eyre::eyre::Error;
 
 use color_eyre::owo_colors::OwoColorize;
 
@@ -115,15 +115,17 @@ impl Container {
         );
 
         let start = self.start(docker);
-        let task = logs.try_for_each(|x| async move {
-            use bollard::container::LogOutput::*;
-            let prompt = self.name.to_string() + ":";
-            match x {
-                StdErr { .. } => eprint!("{:<20} {}", prompt.blue(), x),
-                _ => print!("{:<20} {}", prompt.blue(), x),
-            }
-            Ok(())
-        });
+        let task = logs
+            .try_for_each(|x| async move {
+                use bollard::container::LogOutput::*;
+                let prompt = self.name.to_string() + ":";
+                match x {
+                    StdErr { .. } => eprint!("{:<20} {}", prompt.blue(), x),
+                    _ => print!("{:<20} {}", prompt.blue(), x),
+                }
+                Ok(())
+            })
+            .map_err(|e| e.into()); // map Bollard::Error to eyre::Error
         let rm = self.rm(docker);
 
         // if start succeed, do task, but always do rm

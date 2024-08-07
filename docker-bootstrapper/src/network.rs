@@ -1,8 +1,6 @@
-use bollard::{errors::Error, network::CreateNetworkOptions, Docker};
-use futures::{
-    stream::{FuturesUnordered},
-    FutureExt, StreamExt, TryStreamExt,
-};
+use bollard::{network::CreateNetworkOptions, Docker};
+use color_eyre::eyre::Error;
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
 
 use crate::{Container, ContainerBuilder};
 
@@ -71,7 +69,8 @@ impl ContainerNetwork {
             .iter()
             .map(|c| c.run(docker))
             .collect::<FuturesUnordered<_>>()
-            .try_collect()
-            .await
+            .try_collect::<()>()
+            .await?;
+        Ok(())
     }
 }
