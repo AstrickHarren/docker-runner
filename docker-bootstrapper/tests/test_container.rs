@@ -2,7 +2,7 @@ use bollard::Docker;
 use docker_bootstrapper::ImageBuilder;
 
 #[tokio::test]
-async fn test_docker() -> color_eyre::Result<()> {
+async fn test_container() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let dockerfile = {
