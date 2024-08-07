@@ -7,14 +7,11 @@ async fn test_docker_net() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
 
-    //let p1 = container_builder(&docker, "p1").await?;
-    //let p2 = container_builder(&docker, "p2").await?;
-    //let p3 = container_builder(&docker, "p3").await?;
-    let yes = container_builder(&docker, "p4")
-        .await?
-        .with_cmd(["yes"])
-        .with_wait(true);
-    let network = ContainerNetworkBuilder::new("test").with_containers([yes]);
+    let p1 = container_builder(&docker, "p1").await?;
+    let p2 = container_builder(&docker, "p2").await?;
+    let p3 = container_builder(&docker, "p3").await?;
+    let yes = container_builder(&docker, "p4").await?.with_cmd(["yes"]);
+    let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, yes]);
 
     network.build(&docker).await?.run(&docker).await?;
     Ok(())

@@ -1,3 +1,4 @@
+#![feature(try_blocks)]
 mod container;
 mod image;
 mod network;

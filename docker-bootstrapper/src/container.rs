@@ -135,9 +135,9 @@ impl Container {
             }),
         );
 
-        let start = self.start(docker);
-        let task = logs
-            .try_for_each(|x| async move {
+        let result = try {
+            self.start(docker).await?;
+            logs.try_for_each(|x| async move {
                 use bollard::container::LogOutput::*;
                 let prompt = self.name.to_string() + ":";
                 match x {
@@ -146,11 +146,14 @@ impl Container {
                 }
                 Ok(())
             })
-            .map_err(|e| e.into()); // map Bollard::Error to eyre::Error
-        let rm = self.rm(docker);
+            .await?;
+            if self.is_waited {
+                self.wait(docker).await?;
+            }
+        };
 
-        // if start succeed, do task, but always do rm
-        start.and_then(|_| task).await.and(rm.await)
+        self.rm(docker).await?;
+        result
     }
 
     pub async fn wait(&self, docker: &Docker) -> Result<(), Error> {
