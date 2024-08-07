@@ -55,6 +55,12 @@ impl<'a> ContainerBuilder<'a> {
         self
     }
 
+    pub fn with_net(mut self, network_id: impl ToString) -> Self {
+        let host_config = self.config.host_config.get_or_insert_with(Default::default);
+        host_config.network_mode = Some(network_id.to_string());
+        self
+    }
+
     pub fn with_bind_current_exe_dir(self, to_container: impl Display) -> Self {
         let exe = env::current_exe().unwrap();
         self.with_bind(exe.parent().unwrap().to_string_lossy(), to_container)
