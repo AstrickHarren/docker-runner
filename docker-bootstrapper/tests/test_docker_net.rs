@@ -3,7 +3,7 @@ use docker_bootstrapper::{ContainerBuilder, ContainerNetworkBuilder, Image, Imag
 use dockerfiles::{DockerFile, From};
 
 #[tokio::test]
-async fn test_docker_net() -> color_eyre::Result<()> {
+async fn test_docker_net_without_wait() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
 
@@ -11,8 +11,12 @@ async fn test_docker_net() -> color_eyre::Result<()> {
     let p2 = container_builder(&docker, "p2").await?;
     let p3 = container_builder(&docker, "p3").await?;
     let yes = container_builder(&docker, "p4").await?.with_cmd(["yes"]);
-    let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, yes]);
-
+    let postgres = ImageBuilder::new(&DockerFile::new(From::image("postgres")))
+        .build(&docker)
+        .await?
+        .into_container_builder("postgres")
+        .with_env("POSTGRES_PASSWORD", "postgres");
+    let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, yes, postgres]);
     network.build(&docker).await?.run(&docker).await?;
     Ok(())
 }

@@ -51,6 +51,14 @@ impl<'a> ContainerBuilder<'a> {
         self
     }
 
+    pub fn with_env(mut self, var_name: impl Display, value: impl Display) -> Self {
+        self.config
+            .env
+            .get_or_insert_with(Default::default)
+            .push(format!("{}={}", var_name, value));
+        self
+    }
+
     pub fn with_bind(mut self, from_local: impl Display, to_container: impl Display) -> Self {
         let host_config = self.config.host_config.get_or_insert_with(Default::default);
         host_config
