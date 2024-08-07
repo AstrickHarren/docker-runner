@@ -52,6 +52,19 @@ impl Volume {
     }
 }
 
+#[derive(Debug, Instruction)]
+pub struct Run {
+    pub cmd: String,
+}
+
+impl Run {
+    pub fn new(cmd: impl ToString) -> Self {
+        Self {
+            cmd: cmd.to_string(),
+        }
+    }
+}
+
 pub struct EntryPoint {
     pub cmds: Vec<String>,
 }
@@ -107,6 +120,12 @@ impl Display for Volume {
     }
 }
 
+impl Display for Run {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RUN {}", self.cmd)
+    }
+}
+
 impl Display for EntryPoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cmds = self.cmds.iter().map(|x| format!("\"{}\"", x)).join(", ");
@@ -127,21 +146,22 @@ impl Display for DockerFile {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::instruction::Volume;
-
-    use super::{Copy, DockerFile, From};
 
     #[test]
     fn test_docker_file_creation() {
         let df = DockerFile::new(From::image("alpine"))
             .then(Copy::new(".", "."))
             .then(Volume::new(".", "."))
+            .then(Run::new("apt add curl"))
             .entry_point(["echo", "hello"]);
 
         let df_exp = r#"
 FROM alpine
 COPY . .
 VOLUME . .
+RUN apt add curl
 ENTRYPOINT ["echo", "hello"]
             "#;
 
