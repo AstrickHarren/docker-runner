@@ -17,7 +17,7 @@ impl<'a> ContainerNetworkBuilder<'a> {
                 check_duplicate: true,
                 driver: "bridge",
                 internal: true,
-                enable_ipv6: true,
+                // enable_ipv6: true,
                 ..Default::default()
             },
             containers: Default::default(),
@@ -71,6 +71,12 @@ impl ContainerNetwork {
             .collect::<FuturesUnordered<_>>()
             .try_collect::<()>()
             .await?;
+        self.rm(docker).await?;
+        Ok(())
+    }
+
+    pub async fn rm(&self, docker: &Docker) -> Result<(), Error> {
+        docker.remove_network(&self.id).await?;
         Ok(())
     }
 }
