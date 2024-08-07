@@ -1,6 +1,6 @@
 use bollard::{network::CreateNetworkOptions, Docker};
 use color_eyre::eyre::Error;
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 
 use crate::{Container, ContainerBuilder};
 
@@ -58,25 +58,43 @@ impl<'a> ContainerNetworkBuilder<'a> {
     }
 }
 
+#[must_use = "network build is not removed if not used"]
 pub struct ContainerNetwork {
     id: String,
     containers: Vec<Container>,
 }
 
 impl ContainerNetwork {
-    pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
+    pub async fn run(self, docker: &Docker) -> Result<(), Error> {
+        // if run succeed, then wait, but always do rm
+        self.run_containers(docker)
+            .and_then(|_| self.wait_containers(docker))
+            .await
+            .and(self.rm(docker).await)
+    }
+
+    pub async fn rm(self, docker: &Docker) -> Result<(), Error> {
+        docker.remove_network(&self.id).await?;
+        Ok(())
+    }
+
+    async fn run_containers(&self, docker: &Docker) -> Result<(), Error> {
         self.containers
             .iter()
             .map(|c| c.run(docker))
             .collect::<FuturesUnordered<_>>()
             .try_collect::<()>()
             .await?;
-        self.rm(docker).await?;
         Ok(())
     }
 
-    pub async fn rm(&self, docker: &Docker) -> Result<(), Error> {
-        docker.remove_network(&self.id).await?;
-        Ok(())
+    async fn wait_containers(&self, docker: &Docker) -> Result<(), Error> {
+        self.containers
+            .iter()
+            .filter(|c| c.is_waited)
+            .map(|c| c.wait(docker))
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<()>()
+            .await
     }
 }

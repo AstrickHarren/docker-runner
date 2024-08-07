@@ -1,7 +1,9 @@
 use std::{env, fmt::Display};
 
 use bollard::{
-    container::{Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions},
+    container::{
+        Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions, WaitContainerOptions,
+    },
     exec::{CreateExecOptions, StartExecResults},
     Docker,
 };
@@ -9,7 +11,7 @@ use color_eyre::eyre::Error;
 
 use color_eyre::owo_colors::OwoColorize;
 
-use futures::{TryFutureExt, TryStreamExt};
+use futures::{StreamExt, TryFutureExt, TryStreamExt};
 
 use crate::Image;
 
@@ -22,6 +24,8 @@ impl Image {
 pub struct ContainerBuilder<'a> {
     opts: CreateContainerOptions<&'a str>,
     config: Config<String>,
+    /// If is waited for the docker network before it removes this container with it finishing its execution
+    is_waited: bool,
 }
 
 impl<'a> ContainerBuilder<'a> {
@@ -38,6 +42,7 @@ impl<'a> ContainerBuilder<'a> {
                 attach_stderr: Some(true),
                 ..Default::default()
             },
+            is_waited: false,
         }
     }
 
@@ -61,6 +66,13 @@ impl<'a> ContainerBuilder<'a> {
         self
     }
 
+    /// Whether [crate::ContainerNetwork] will wait for my execution
+    /// before it removes all of its inner containers
+    pub fn with_wait(mut self, wait: bool) -> Self {
+        self.is_waited = wait;
+        self
+    }
+
     pub fn with_bind_current_exe_dir(self, to_container: impl Display) -> Self {
         let exe = env::current_exe().unwrap();
         self.with_bind(exe.parent().unwrap().to_string_lossy(), to_container)
@@ -71,7 +83,7 @@ impl<'a> ContainerBuilder<'a> {
         let info = docker
             .create_container(Some(self.opts), self.config)
             .await?;
-        Ok(Container::new(info.id, name))
+        Ok(Container::new(info.id, name, self.is_waited))
     }
 }
 
@@ -79,11 +91,20 @@ impl<'a> ContainerBuilder<'a> {
 pub struct Container {
     id: String,
     name: String,
+
+    /// Used for [crate::ContainerNetwork] to decide whether
+    /// to wait for my execution before it removes all of its
+    /// inner containers
+    pub(crate) is_waited: bool,
 }
 
 impl Container {
-    fn new(id: String, name: String) -> Self {
-        Self { id, name }
+    fn new(id: String, name: String, is_waited: bool) -> Self {
+        Self {
+            id,
+            name,
+            is_waited,
+        }
     }
 
     async fn start(&self, docker: &Docker) -> Result<(), Error> {
@@ -130,6 +151,23 @@ impl Container {
 
         // if start succeed, do task, but always do rm
         start.and_then(|_| task).await.and(rm.await)
+    }
+
+    pub async fn wait(&self, docker: &Docker) -> Result<(), Error> {
+        debug_assert!(self.is_waited);
+        docker
+            .wait_container(
+                &self.name,
+                Some(WaitContainerOptions {
+                    condition: "not-running",
+                }),
+            )
+            .map_ok(|b| {
+                dbg!(b);
+            })
+            .map_err(|e| e.into())
+            .try_collect::<()>()
+            .await
     }
 
     pub async fn exec(
