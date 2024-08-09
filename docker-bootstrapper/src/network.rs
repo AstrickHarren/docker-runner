@@ -1,6 +1,6 @@
 use bollard::{container::LogOutput, network::CreateNetworkOptions, Docker};
 use color_eyre::eyre::Error;
-use futures::{stream::FuturesUnordered, FutureExt, Stream, StreamExt, TryStreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 
 use crate::{Container, ContainerBuilder};
 
@@ -67,9 +67,9 @@ pub struct ContainerNetwork {
 impl ContainerNetwork {
     pub async fn run(self, docker: &Docker) -> Result<(), Error> {
         let result = self
-            .start_and_attach(docker)
+            .start_and_log(docker)
             .map_ok(|(c, l)| print!("{:<20} {}", c.name(), l))
-            .try_collect::<()>()
+            .try_for_each_concurrent(None, |_| async { Ok(()) })
             .await;
         self.rm(docker).await?;
         result
@@ -93,7 +93,7 @@ impl ContainerNetwork {
         Ok(())
     }
 
-    fn start_and_attach<'a>(
+    fn start_and_log<'a>(
         &'a self,
         docker: &'a Docker,
     ) -> impl Stream<Item = Result<(&Container, LogOutput), Error>> + 'a {

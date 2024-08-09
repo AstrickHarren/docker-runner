@@ -38,7 +38,7 @@ impl<'a> ContainerBuilder<'a> {
             },
             config: Config {
                 image: Some(image.id),
-                tty: Some(true),
+                tty: Some(false),
                 attach_stdout: Some(true),
                 attach_stderr: Some(true),
                 ..Default::default()
@@ -162,6 +162,7 @@ impl Container {
             .logs::<String>(
                 &self.id,
                 Some(LogsOptions {
+                    follow: true,
                     stdout: true,
                     stderr: true,
                     ..Default::default()
@@ -173,8 +174,7 @@ impl Container {
     pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
         let result = try {
             self.start(docker).await?;
-            self.attach(docker)
-                .await?
+            self.log(docker)
                 .map_ok(|l| print!("{}: {}", self.name.blue(), l))
                 .try_collect::<()>()
                 .await?;
