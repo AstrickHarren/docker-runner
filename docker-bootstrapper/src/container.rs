@@ -12,7 +12,7 @@ use color_eyre::eyre::Error;
 
 use color_eyre::owo_colors::OwoColorize;
 
-use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 
 use crate::Image;
 
@@ -149,7 +149,7 @@ impl Container {
             }),
         );
 
-        let result = try {
+        try {
             self.start(docker).await?;
             logs.try_for_each(|x| async move {
                 use bollard::container::LogOutput::*;
@@ -161,8 +161,7 @@ impl Container {
                 Ok(())
             })
             .await?;
-        };
-        result
+        }
     }
 
     pub fn log(
@@ -180,7 +179,7 @@ impl Container {
                     ..Default::default()
                 }),
             )
-            .map_err(|x| Error::from(x))
+            .map_err(Error::from)
     }
 
     pub async fn wait(&self, docker: &Docker) -> Result<(), Error> {
@@ -193,7 +192,7 @@ impl Container {
                 }),
             )
             .map_ok(|_| ()) // TODO: trace
-            .map_err(|e| Error::from(e))
+            .map_err(Error::from)
             .try_collect::<()>()
             .await?;
         Ok(())

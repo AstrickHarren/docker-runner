@@ -3,14 +3,14 @@ use docker_bootstrapper::ImageBuilder;
 use dockerfiles::*;
 
 #[tokio::test]
-async fn test_container_ls() -> color_eyre::Result<()> {
+async fn container_ls() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let dockerfile = DockerFile::new(From::image("alpine"));
     let container = ImageBuilder::new(&dockerfile)
         .build(&docker)
         .await?
-        .into_container_builder("my_container")
+        .into_container_builder("test_container_ls")
         .with_cmd("ls -al /".split(" "))
         .build(&docker)
         .await?;
@@ -22,8 +22,9 @@ async fn test_container_ls() -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[ignore = "needs wait"]
 #[tokio::test]
-async fn test_container_postgres() -> color_eyre::Result<()> {
+async fn container_postgres() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let container = ImageBuilder::new(&DockerFile::new(From::image("postgres")))

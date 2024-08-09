@@ -1,10 +1,10 @@
-use bollard::{container::LogOutput, network::CreateNetworkOptions, Docker};
-use color_eyre::{eyre::Error, owo_colors::OwoColorize};
+use bollard::{network::CreateNetworkOptions, Docker};
+use color_eyre::eyre::Error;
 use futures::{
-    future::{select, try_join, try_select},
+    future::select,
     pin_mut,
     stream::{self, FuturesUnordered},
-    Future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
+    FutureExt, StreamExt, TryStreamExt,
 };
 
 use crate::{Container, ContainerBuilder};

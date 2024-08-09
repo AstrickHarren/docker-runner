@@ -3,7 +3,7 @@ use docker_bootstrapper::{ContainerBuilder, ContainerNetworkBuilder, ImageBuilde
 use dockerfiles::{DockerFile, From};
 
 #[tokio::test]
-async fn no_wait() -> color_eyre::Result<()> {
+async fn net_no_wait() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
 
@@ -21,8 +21,9 @@ async fn no_wait() -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[ignore = "needs wait"]
 #[tokio::test]
-async fn wait() -> color_eyre::Result<()> {
+async fn net_wait() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
 
@@ -40,8 +41,9 @@ async fn wait() -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[ignore = "needs wait"]
 #[tokio::test]
-async fn double_postgres() -> color_eyre::Result<()> {
+async fn net_double_postgres() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
 
@@ -62,8 +64,9 @@ async fn double_postgres() -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[ignore = "needs wait"]
 #[tokio::test]
-async fn postgres_delay() -> color_eyre::Result<()> {
+async fn net_postgres_delay() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
 

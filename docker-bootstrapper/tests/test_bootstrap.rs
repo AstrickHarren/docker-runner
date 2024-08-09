@@ -4,7 +4,7 @@ use bollard::Docker;
 use docker_bootstrapper::ImageBuilder;
 
 #[tokio::test]
-async fn test_bootstrap() -> color_eyre::Result<()> {
+async fn bootstrap() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let dockerfile = {
@@ -19,7 +19,7 @@ async fn test_bootstrap() -> color_eyre::Result<()> {
     let cmd = format!("{}", exe_dir.to_string_lossy());
 
     let container = img
-        .into_container_builder("my_container")
+        .into_container_builder("test_bootstrap")
         .with_bind_current_exe_dir("/tmp/target")
         .with_cmd(cmd.split(" "))
         .build(&docker)
