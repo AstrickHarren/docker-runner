@@ -115,11 +115,14 @@ impl ContainerNetwork {
                 .iter()
                 .map(|c| c.log(docker, follow).map_ok(move |x| (c, x))),
         )
-        .flatten()
-        .try_for_each_concurrent(None, |(c, l)| async move {
+        .flatten_unordered(None)
+        // NOTE: should I use try_for_each_concurrent instead?
+        .map(|x| {
+            let (c, l) = x?;
             println!("{}: {}", c.name(), l.to_string().trim());
             Ok(())
         })
+        .try_collect()
         .await
     }
 

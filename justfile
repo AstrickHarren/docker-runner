@@ -7,13 +7,17 @@ fix:
   cargo clippy --fix --allow-dirty 
 
 docker_clean: 
-  ! docker rm $(docker ps -aq)
-  ! docker kill $(docker ps -aq)
-  ! docker image rm $(docker image list -aq)
+  - docker rm $(docker ps -aq)
+  - docker kill $(docker ps -aq)
+  - docker image rm $(docker image list -aq)
 
-test *ARGS: 
-  cargo nextest run {{ARGS}}
+docker_prune:
+  - docker rm -f $(docker ps -aq)
+  - echo y | docker network prune
 
-test_no_capture *ARGS: 
+test *ARGS: docker_prune
+  - cargo nextest run {{ARGS}}
+
+test_no_capture *ARGS: docker_prune
   @ just test --nocapture {{ARGS}}
 
