@@ -1,6 +1,6 @@
-use bollard::{network::CreateNetworkOptions, Docker};
+use bollard::{container::LogOutput, network::CreateNetworkOptions, Docker};
 use color_eyre::eyre::Error;
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, Stream, StreamExt, TryStreamExt};
 
 use crate::{Container, ContainerBuilder};
 
@@ -66,35 +66,48 @@ pub struct ContainerNetwork {
 
 impl ContainerNetwork {
     pub async fn run(self, docker: &Docker) -> Result<(), Error> {
-        // if run succeed, then wait, but always do rm
-        self.run_containers(docker)
-            .and_then(|_| self.wait_containers(docker))
-            .await
-            .and(self.rm(docker).await)
+        let result = self
+            .start_and_attach(docker)
+            .map_ok(|(c, l)| print!("{:<20} {}", c.name(), l))
+            .try_collect::<()>()
+            .await;
+        self.rm(docker).await?;
+        result
     }
 
     pub async fn rm(self, docker: &Docker) -> Result<(), Error> {
+        self.containers
+            .iter()
+            .map(|container| async {
+                if container.is_waited {
+                    container.wait(docker).await?;
+                }
+                container.rm(docker).await?;
+                Ok::<_, Error>(())
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_for_each_concurrent(None, |_| async { Ok::<_, Error>(()) })
+            .await?;
+
         docker.remove_network(&self.id).await?;
         Ok(())
     }
 
-    async fn run_containers(&self, docker: &Docker) -> Result<(), Error> {
-        self.containers
+    fn start_and_attach<'a>(
+        &'a self,
+        docker: &'a Docker,
+    ) -> impl Stream<Item = Result<(&Container, LogOutput), Error>> + 'a {
+        let streams = self
+            .containers
             .iter()
-            .map(|c| c.run(docker))
+            .map(|c| {
+                c.start(docker)
+                    .map(|_| c.log(docker))
+                    .map(move |log| log.map_ok(move |x| (c, x)))
+            })
             .collect::<FuturesUnordered<_>>()
-            .try_collect::<()>()
-            .await?;
-        Ok(())
-    }
+            .flatten();
 
-    async fn wait_containers(&self, docker: &Docker) -> Result<(), Error> {
-        self.containers
-            .iter()
-            .filter(|c| c.is_waited)
-            .map(|c| c.wait(docker))
-            .collect::<FuturesUnordered<_>>()
-            .try_collect::<()>()
-            .await
+        streams
     }
 }

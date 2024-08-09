@@ -2,7 +2,8 @@ use std::{env, fmt::Display};
 
 use bollard::{
     container::{
-        Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions, WaitContainerOptions,
+        AttachContainerOptions, Config, CreateContainerOptions, LogOutput, LogsOptions,
+        RemoveContainerOptions, WaitContainerOptions,
     },
     exec::{CreateExecOptions, StartExecResults},
     Docker,
@@ -11,7 +12,7 @@ use color_eyre::eyre::Error;
 
 use color_eyre::owo_colors::OwoColorize;
 
-use futures::{StreamExt, TryFutureExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 
 use crate::Image;
 
@@ -42,7 +43,7 @@ impl<'a> ContainerBuilder<'a> {
                 attach_stderr: Some(true),
                 ..Default::default()
             },
-            is_waited: false,
+            is_waited: true,
         }
     }
 
@@ -115,12 +116,35 @@ impl Container {
         }
     }
 
-    async fn start(&self, docker: &Docker) -> Result<(), Error> {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub async fn start(&self, docker: &Docker) -> Result<(), Error> {
         docker.start_container::<String>(&self.id, None).await?;
         Ok(())
     }
 
-    async fn rm(&self, docker: &Docker) -> Result<(), Error> {
+    pub async fn attach(
+        &self,
+        docker: &Docker,
+    ) -> Result<impl Stream<Item = Result<LogOutput, Error>>, Error> {
+        let result = docker
+            .attach_container(
+                &self.id,
+                Some(AttachContainerOptions::<&str> {
+                    stdout: Some(true),
+                    stderr: Some(true),
+                    stream: Some(true),
+                    logs: Some(true),
+                    ..Default::default()
+                }),
+            )
+            .await?;
+        Ok(result.output.map_err(|e| e.into()))
+    }
+
+    pub async fn rm(&self, docker: &Docker) -> Result<(), Error> {
         docker
             .remove_container(
                 &self.id,
@@ -133,28 +157,27 @@ impl Container {
         Ok(())
     }
 
-    pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
-        let logs = docker.logs::<String>(
-            &self.id,
-            Some(LogsOptions {
-                stdout: true,
-                stderr: true,
-                ..Default::default()
-            }),
-        );
+    pub fn log(&self, docker: &Docker) -> impl Stream<Item = Result<LogOutput, Error>> {
+        docker
+            .logs::<String>(
+                &self.id,
+                Some(LogsOptions {
+                    stdout: true,
+                    stderr: true,
+                    ..Default::default()
+                }),
+            )
+            .map_err(|e| e.into())
+    }
 
+    pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
         let result = try {
             self.start(docker).await?;
-            logs.try_for_each(|x| async move {
-                use bollard::container::LogOutput::*;
-                let prompt = self.name.to_string() + ":";
-                match x {
-                    StdErr { .. } => eprint!("{:<20} {}", prompt.blue(), x),
-                    _ => print!("{:<20} {}", prompt.blue(), x),
-                }
-                Ok(())
-            })
-            .await?;
+            self.attach(docker)
+                .await?
+                .map_ok(|l| print!("{}: {}", self.name.blue(), l))
+                .try_collect::<()>()
+                .await?;
             if self.is_waited {
                 self.wait(docker).await?;
             }
@@ -173,9 +196,7 @@ impl Container {
                     condition: "not-running",
                 }),
             )
-            .map_ok(|b| {
-                dbg!(b);
-            })
+            .map_ok(|_| ()) // TODO: trace this
             .map_err(|e| e.into())
             .try_collect::<()>()
             .await

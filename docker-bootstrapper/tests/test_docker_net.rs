@@ -1,5 +1,5 @@
 use bollard::Docker;
-use docker_bootstrapper::{ContainerBuilder, ContainerNetworkBuilder, Image, ImageBuilder};
+use docker_bootstrapper::{ContainerBuilder, ContainerNetworkBuilder, ImageBuilder};
 use dockerfiles::{DockerFile, From};
 
 #[tokio::test]
@@ -10,13 +10,12 @@ async fn test_docker_net_without_wait() -> color_eyre::Result<()> {
     let p1 = container_builder(&docker, "p1").await?;
     let p2 = container_builder(&docker, "p2").await?;
     let p3 = container_builder(&docker, "p3").await?;
-    let yes = container_builder(&docker, "p4").await?.with_cmd(["yes"]);
     let postgres = ImageBuilder::new(&DockerFile::new(From::image("postgres")))
         .build(&docker)
         .await?
         .into_container_builder("postgres")
         .with_env("POSTGRES_PASSWORD", "postgres");
-    let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, yes, postgres]);
+    let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, postgres]);
     network.build(&docker).await?.run(&docker).await?;
     Ok(())
 }
