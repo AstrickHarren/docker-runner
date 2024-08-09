@@ -2,8 +2,8 @@ use std::{env, fmt::Display};
 
 use bollard::{
     container::{
-        AttachContainerOptions, Config, CreateContainerOptions, LogOutput, LogsOptions,
-        RemoveContainerOptions, WaitContainerOptions,
+        Config, CreateContainerOptions, LogOutput, LogsOptions, RemoveContainerOptions,
+        WaitContainerOptions,
     },
     exec::{CreateExecOptions, StartExecResults},
     Docker,
@@ -12,7 +12,7 @@ use color_eyre::eyre::Error;
 
 use color_eyre::owo_colors::OwoColorize;
 
-use futures::{Stream, TryStreamExt};
+use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
 
 use crate::Image;
 
@@ -38,12 +38,12 @@ impl<'a> ContainerBuilder<'a> {
             },
             config: Config {
                 image: Some(image.id),
-                tty: Some(false),
+                tty: Some(true),
                 attach_stdout: Some(true),
                 attach_stderr: Some(true),
                 ..Default::default()
             },
-            is_waited: true,
+            is_waited: false,
         }
     }
 
@@ -125,25 +125,6 @@ impl Container {
         Ok(())
     }
 
-    pub async fn attach(
-        &self,
-        docker: &Docker,
-    ) -> Result<impl Stream<Item = Result<LogOutput, Error>>, Error> {
-        let result = docker
-            .attach_container(
-                &self.id,
-                Some(AttachContainerOptions::<&str> {
-                    stdout: Some(true),
-                    stderr: Some(true),
-                    stream: Some(true),
-                    logs: Some(true),
-                    ..Default::default()
-                }),
-            )
-            .await?;
-        Ok(result.output.map_err(|e| e.into()))
-    }
-
     pub async fn rm(&self, docker: &Docker) -> Result<(), Error> {
         docker
             .remove_container(
@@ -157,34 +138,49 @@ impl Container {
         Ok(())
     }
 
-    pub fn log(&self, docker: &Docker) -> impl Stream<Item = Result<LogOutput, Error>> {
+    pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
+        let logs = docker.logs::<String>(
+            &self.id,
+            Some(LogsOptions {
+                follow: true,
+                stdout: true,
+                stderr: true,
+                ..Default::default()
+            }),
+        );
+
+        let result = try {
+            self.start(docker).await?;
+            logs.try_for_each(|x| async move {
+                use bollard::container::LogOutput::*;
+                let prompt = self.name.to_string() + ":";
+                match x {
+                    StdErr { .. } => eprint!("{:<20} {}", prompt.blue(), x),
+                    _ => print!("{:<20} {}", prompt.blue(), x),
+                }
+                Ok(())
+            })
+            .await?;
+        };
+        result
+    }
+
+    pub fn log(
+        &self,
+        docker: &Docker,
+        follow: bool,
+    ) -> impl Stream<Item = Result<LogOutput, Error>> {
         docker
             .logs::<String>(
                 &self.id,
                 Some(LogsOptions {
-                    follow: true,
+                    follow,
                     stdout: true,
                     stderr: true,
                     ..Default::default()
                 }),
             )
-            .map_err(|e| e.into())
-    }
-
-    pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
-        let result = try {
-            self.start(docker).await?;
-            self.log(docker)
-                .map_ok(|l| print!("{}: {}", self.name.blue(), l))
-                .try_collect::<()>()
-                .await?;
-            if self.is_waited {
-                self.wait(docker).await?;
-            }
-        };
-
-        self.rm(docker).await?;
-        result
+            .map_err(|x| Error::from(x))
     }
 
     pub async fn wait(&self, docker: &Docker) -> Result<(), Error> {
@@ -196,10 +192,11 @@ impl Container {
                     condition: "not-running",
                 }),
             )
-            .map_ok(|_| ()) // TODO: trace this
-            .map_err(|e| e.into())
+            .map_ok(|_| ()) // TODO: trace
+            .map_err(|e| Error::from(e))
             .try_collect::<()>()
-            .await
+            .await?;
+        Ok(())
     }
 
     pub async fn exec(

@@ -1,6 +1,11 @@
 use bollard::{container::LogOutput, network::CreateNetworkOptions, Docker};
-use color_eyre::eyre::Error;
-use futures::{stream::FuturesUnordered, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
+use color_eyre::{eyre::Error, owo_colors::OwoColorize};
+use futures::{
+    future::{select, try_join, try_select},
+    pin_mut,
+    stream::{self, FuturesUnordered},
+    Future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt, TryStreamExt,
+};
 
 use crate::{Container, ContainerBuilder};
 
@@ -65,49 +70,78 @@ pub struct ContainerNetwork {
 }
 
 impl ContainerNetwork {
-    pub async fn run(self, docker: &Docker) -> Result<(), Error> {
-        let result = self
-            .start_and_log(docker)
-            .map_ok(|(c, l)| print!("{:<20} {}", c.name(), l))
-            .try_for_each_concurrent(None, |_| async { Ok(()) })
-            .await;
-        self.rm(docker).await?;
-        result
+    pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
+        let start = self.start(docker);
+        let log = self.log(docker, true);
+        let wait = self.wait(docker);
+        let flash = self.log(docker, false);
+
+        pin_mut!(log);
+        pin_mut!(wait);
+
+        use futures::future::Either::*;
+        let log_or_wait = select(log, wait).map(|either| match either {
+            Left((x, _)) => {
+                println!("log ends");
+                x
+            }
+            Right((x, _)) => {
+                println!("waiting ends");
+                x
+            }
+        });
+
+        // always run remove
+        let task: Result<_, Error> = try {
+            start.await?;
+            log_or_wait.await?;
+            flash.await?;
+        };
+        task.and(self.rm(docker).await)
     }
 
-    pub async fn rm(self, docker: &Docker) -> Result<(), Error> {
+    pub async fn start(&self, docker: &Docker) -> Result<(), Error> {
         self.containers
             .iter()
-            .map(|container| async {
-                if container.is_waited {
-                    container.wait(docker).await?;
-                }
-                container.rm(docker).await?;
-                Ok::<_, Error>(())
-            })
+            .map(|c| c.start(docker))
             .collect::<FuturesUnordered<_>>()
-            .try_for_each_concurrent(None, |_| async { Ok::<_, Error>(()) })
+            .try_collect::<()>()
+            .await
+    }
+
+    pub async fn log(&self, docker: &Docker, follow: bool) -> Result<(), Error> {
+        stream::iter(
+            self.containers
+                .iter()
+                .map(|c| c.log(docker, follow).map_ok(move |x| (c, x))),
+        )
+        .flatten()
+        .try_for_each_concurrent(None, |(c, l)| async move {
+            println!("{}: {}", c.name(), l.to_string().trim());
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn wait(&self, docker: &Docker) -> Result<(), Error> {
+        self.containers
+            .iter()
+            .filter(|c| c.is_waited)
+            .map(|c| c.wait(docker))
+            .collect::<FuturesUnordered<_>>()
+            .try_collect()
+            .await
+    }
+
+    pub async fn rm(&self, docker: &Docker) -> Result<(), Error> {
+        self.containers
+            .iter()
+            .map(|c| c.rm(docker))
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<()>()
             .await?;
 
         docker.remove_network(&self.id).await?;
         Ok(())
-    }
-
-    fn start_and_log<'a>(
-        &'a self,
-        docker: &'a Docker,
-    ) -> impl Stream<Item = Result<(&Container, LogOutput), Error>> + 'a {
-        let streams = self
-            .containers
-            .iter()
-            .map(|c| {
-                c.start(docker)
-                    .map(|_| c.log(docker))
-                    .map(move |log| log.map_ok(move |x| (c, x)))
-            })
-            .collect::<FuturesUnordered<_>>()
-            .flatten();
-
-        streams
     }
 }
