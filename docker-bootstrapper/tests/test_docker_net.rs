@@ -8,9 +8,16 @@ async fn net_no_wait() -> color_eyre::Result<()> {
     let docker = Docker::connect_with_defaults()?;
     let alpine = DockerFile::new(From::image("alpine"));
 
-    let p1 = ImageBuilder::new(&alpine).into_container_builder("p1");
-    let p2 = ImageBuilder::new(&alpine).into_container_builder("p2");
-    let p3 = ImageBuilder::new(&alpine).into_container_builder("p3");
+    let p = |name| {
+        ImageBuilder::new(&alpine)
+            .into_container_builder(name)
+            .with_cmd("ls -al /".split(" "))
+            .with_wait(true)
+    };
+
+    let p1 = p("p1");
+    let p2 = p("p2");
+    let p3 = p("p3");
     let df = DockerFile::new(From::image("postgres"));
     let postgres = ImageBuilder::new(&df)
         .into_container_builder("postgres")
@@ -28,9 +35,16 @@ async fn net_wait() -> color_eyre::Result<()> {
     let docker = Docker::connect_with_defaults()?;
     let alpine = DockerFile::new(From::image("alpine"));
 
-    let p1 = ImageBuilder::new(&alpine).into_container_builder("p1");
-    let p2 = ImageBuilder::new(&alpine).into_container_builder("p2");
-    let p3 = ImageBuilder::new(&alpine).into_container_builder("p3");
+    let p = |name| {
+        ImageBuilder::new(&alpine)
+            .into_container_builder(name)
+            .with_cmd("ls -al /".split(" "))
+            .with_wait(true)
+    };
+
+    let p1 = p("p1");
+    let p2 = p("p2");
+    let p3 = p("p3");
     let df = DockerFile::new(From::image("postgres"));
     let postgres = ImageBuilder::new(&df)
         .into_container_builder("postgres")
