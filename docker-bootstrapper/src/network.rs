@@ -1,13 +1,14 @@
 use bollard::{network::CreateNetworkOptions, Docker};
-use color_eyre::eyre::Error;
+use color_eyre::{
+    eyre::Error,
+    owo_colors::{OwoColorize, Style},
+};
 use futures::{
-    future::select,
-    pin_mut,
-    stream::{self, FuturesUnordered},
-    FutureExt, StreamExt, TryStreamExt,
+    future::select_all,
+    stream::{self, FuturesUnordered}, FutureExt, StreamExt, TryFutureExt, TryStreamExt,
 };
 
-use crate::{Container, ContainerBuilder};
+use crate::{utils::ctrl_c, Container, ContainerBuilder};
 
 pub struct ContainerNetworkBuilder<'a> {
     opts: CreateNetworkOptions<&'a str>,
@@ -74,29 +75,20 @@ impl ContainerNetwork {
         let start = self.start(docker);
         let log = self.log(docker, true);
         let wait = self.wait(docker);
-        let flash = self.log(docker, false);
+        let cancel = ctrl_c()
+            .map_err(|e| e.into())
+            .inspect_ok(|_| Self::print_cancel_msg());
 
-        pin_mut!(log);
-        pin_mut!(wait);
+        let log_wait_ctrlc =
+            select_all([log.boxed_local(), wait.boxed_local(), cancel.boxed_local()].into_iter())
+                .map(|(x, _, _)| x);
 
-        use futures::future::Either::*;
-        let log_or_wait = select(log, wait).map(|either| match either {
-            Left((x, _)) => {
-                println!("log ends");
-                x
-            }
-            Right((x, _)) => {
-                println!("waiting ends");
-                x
-            }
-        });
-
-        // always run remove
         let task: Result<_, Error> = try {
             start.await?;
-            log_or_wait.await?;
-            flash.await?;
+            log_wait_ctrlc.await?;
         };
+
+        // always run remove
         task.and(self.rm(docker).await)
     }
 
@@ -146,5 +138,14 @@ impl ContainerNetwork {
 
         docker.remove_network(&self.id).await?;
         Ok(())
+    }
+
+    fn print_cancel_msg() {
+        let canceling = "Canceling".style(Style::new().red().bold());
+        let interrupt = "interrupt".style(Style::new().red().bold());
+        let docker = "docker".style(Style::new().blue().bold());
+        let hint = "Hint".style(Style::new().yellow().bold());
+        println!("\n\t{canceling} due to {interrupt}: cleaning lingering {docker} resources...");
+        println!("\t{hint}: hit interrupt again to force quit");
     }
 }

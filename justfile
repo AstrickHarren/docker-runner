@@ -16,7 +16,7 @@ docker_prune:
   - echo y | docker network prune
 
 test *ARGS: docker_prune
-  - cargo nextest run {{ARGS}}
+  - cargo nextest run --run-ignored all {{ARGS}}
 
 test_no_capture *ARGS: docker_prune
   @ just test --nocapture {{ARGS}}
