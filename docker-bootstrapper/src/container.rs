@@ -114,7 +114,7 @@ impl<'a> ContainerBuilder<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Container {
     id: String,
     name: String,

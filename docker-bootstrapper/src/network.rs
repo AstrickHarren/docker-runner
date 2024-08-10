@@ -110,13 +110,18 @@ impl ContainerNetwork {
         )
         .flatten_unordered(None)
         // NOTE: should I use try_for_each_concurrent instead?
-        .map(|x| {
-            let (c, l) = x?;
-            println!("{}: {}", c.name(), l.to_string().trim());
-            Ok(())
+        .try_fold(Dialogger::default(), |mut logger, (c, l)| async move {
+            match l.to_string().trim() {
+                "" => Ok(logger),
+                l => {
+                    logger.log(c, l.to_string().trim());
+                    Ok(logger.with_id(c))
+                }
+            }
         })
-        .try_collect()
-        .await
+        .await?
+        .print_end();
+        Ok(())
     }
 
     pub async fn wait(&self, docker: &Docker) -> Result<(), Error> {
@@ -148,5 +153,51 @@ impl ContainerNetwork {
         let hint = "Hint".style(Style::new().yellow().bold());
         println!("\n\t{canceling} due to {interrupt}: cleaning lingering {docker} resources...");
         println!("\t{hint}: hit interrupt again to force quit");
+    }
+}
+
+#[derive(Default)]
+struct Dialogger<'a> {
+    dia_len: usize,
+    current_id: Option<&'a Container>,
+}
+
+impl<'a> Dialogger<'a> {
+    fn print_start(id: &Container, msg: &str) {
+        println!("{:<20}{}", id.name(), msg)
+    }
+
+    fn print_mid(msg: &str) {
+        println!("{:<20}{}", " ┃", msg)
+    }
+
+    fn print_end(&self) {
+        if self.dia_len > 0 {
+            println!(" ┗━━");
+        }
+    }
+
+    fn with_id(self, id: &'a Container) -> Self {
+        let dia_len = if self.current_id == Some(id) {
+            self.dia_len + 1
+        } else {
+            0
+        };
+
+        Self {
+            dia_len,
+            current_id: id.into(),
+        }
+    }
+
+    fn log(&mut self, id: &Container, msg: &str) {
+        match self.current_id {
+            Some(x) if &x == &id => Self::print_mid(msg),
+            Some(_) => {
+                self.print_end();
+                Self::print_start(id, msg)
+            }
+            None => Self::print_start(id, msg),
+        };
     }
 }
