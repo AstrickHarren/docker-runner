@@ -1,9 +1,9 @@
 use color_eyre::eyre::Error;
-use std::io::Write;
+use std::{cell::RefCell, io::Write, sync::Arc};
 
 use bollard::{image::BuildImageOptions, Docker};
 use dockerfiles::DockerFile;
-use futures::{future::ready, TryStreamExt};
+use futures::{future::ready, lock::Mutex, TryStreamExt};
 
 pub struct ImageBuilder<'a> {
     docker_file: &'a DockerFile,
@@ -58,7 +58,7 @@ impl<'a> ImageBuilder<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Image {
     pub id: String,
 }

@@ -2,6 +2,7 @@ use std::{
     env::{self},
     fmt::Display,
     path::Path,
+    sync::Arc,
 };
 
 use bollard::{
@@ -18,15 +19,16 @@ use color_eyre::owo_colors::OwoColorize;
 
 use futures::{Stream, TryStreamExt};
 
-use crate::Image;
+use crate::{Image, ImageBuilder};
 
-impl Image {
-    pub fn into_container_builder(self, name: &str) -> ContainerBuilder {
+impl<'a> ImageBuilder<'a> {
+    pub fn into_container_builder(self, name: &'a str) -> ContainerBuilder<'a> {
         ContainerBuilder::new(name, self)
     }
 }
 
 pub struct ContainerBuilder<'a> {
+    image: ImageBuilder<'a>,
     opts: CreateContainerOptions<&'a str>,
     config: Config<String>,
     /// If is waited for the docker network before it removes this container with it finishing its execution
@@ -34,14 +36,15 @@ pub struct ContainerBuilder<'a> {
 }
 
 impl<'a> ContainerBuilder<'a> {
-    pub fn new(name: &'a str, image: Image) -> Self {
+    pub fn new(name: &'a str, image_builder: ImageBuilder<'a>) -> Self {
         Self {
             opts: CreateContainerOptions {
                 name,
                 ..Default::default()
             },
+            image: image_builder,
             config: Config {
-                image: Some(image.id),
+                image: None,
                 tty: Some(true),
                 attach_stdout: Some(true),
                 attach_stderr: Some(true),
@@ -102,8 +105,9 @@ impl<'a> ContainerBuilder<'a> {
             .with_cmd([exe.to_string_lossy().into_owned()].into_iter().chain(args))
     }
 
-    pub async fn build(self, docker: &Docker) -> Result<Container, Error> {
+    pub async fn build(mut self, docker: &Docker) -> Result<Container, Error> {
         let name = self.opts.name.to_string();
+        self.config.image = Some(self.image.build(docker).await?.id);
         let info = docker
             .create_container(Some(self.opts), self.config)
             .await?;

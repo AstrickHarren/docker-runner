@@ -5,7 +5,8 @@ use color_eyre::{
 };
 use futures::{
     future::select_all,
-    stream::{self, FuturesUnordered}, FutureExt, StreamExt, TryFutureExt, TryStreamExt,
+    stream::{self, FuturesUnordered},
+    FutureExt, StreamExt, TryFutureExt, TryStreamExt,
 };
 
 use crate::{utils::ctrl_c, Container, ContainerBuilder};
