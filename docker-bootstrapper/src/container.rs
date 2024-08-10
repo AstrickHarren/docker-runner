@@ -1,4 +1,8 @@
-use std::{env, fmt::Display};
+use std::{
+    env::{self},
+    fmt::Display,
+    path::Path,
+};
 
 use bollard::{
     container::{
@@ -85,6 +89,17 @@ impl<'a> ContainerBuilder<'a> {
     pub fn with_bind_current_exe_dir(self, to_container: impl Display) -> Self {
         let exe = env::current_exe().unwrap();
         self.with_bind(exe.parent().unwrap().to_string_lossy(), to_container)
+    }
+
+    const CONTAINER_BOOTSTRAP_DIR: &'static str = "/tmp/target";
+    pub fn with_bootstrap(self) -> Self {
+        let exe = Path::new(Self::CONTAINER_BOOTSTRAP_DIR)
+            .join(env::current_exe().unwrap().file_name().unwrap());
+
+        let args = env::args();
+
+        self.with_bind_current_exe_dir(Self::CONTAINER_BOOTSTRAP_DIR)
+            .with_cmd([exe.to_string_lossy().into_owned()].into_iter().chain(args))
     }
 
     pub async fn build(self, docker: &Docker) -> Result<Container, Error> {

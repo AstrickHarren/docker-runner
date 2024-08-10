@@ -20,8 +20,7 @@ async fn bootstrap() -> color_eyre::Result<()> {
 
     let container = img
         .into_container_builder("test_bootstrap")
-        .with_bind_current_exe_dir("/tmp/target")
-        .with_cmd(cmd.split(" "))
+        .with_bootstrap()
         .build(&docker)
         .await?;
 
