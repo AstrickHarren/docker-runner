@@ -1,12 +1,13 @@
 use std::time::Duration;
 
 use bollard::Docker;
+use color_eyre::owo_colors::OwoColorize;
 use docker_bootstrapper::{BootstrapDockerNet, ImageBuilder};
 use dockerfiles::*;
 use tokio::time::sleep;
 
 #[tokio::test]
-async fn bootstrap() -> color_eyre::Result<()> {
+async fn bare_bootstrap() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let dockerfile = DockerFile::new(From::image("ubuntu"));
@@ -18,7 +19,10 @@ async fn bootstrap() -> color_eyre::Result<()> {
         .build(&docker)
         .await?;
 
-    container.run(&docker).await?;
+    container
+        .run(&docker)
+        .await
+        .and(container.rm(&docker).await)?;
 
     Ok(())
 }
@@ -36,18 +40,19 @@ async fn bootstrapper() -> color_eyre::Result<()> {
         .with_wait(true)
         .perform()
         .then(|_| async {
-            println!("I am docker 3, sleeping for 10 secs...");
-            sleep(Duration::from_secs(10)).await;
+            println!("{}", "I am docker 3, sleeping for 1 sec...".blue());
+            sleep(Duration::from_secs(1)).await;
+            println!("{}", "sleep complete".blue());
         });
 
     let d1 = d1.then(|_| async {
-        println!("I am docker 1");
+        println!("{}", "I am docker 1".green());
     });
     let d2 = d2.then(|_| async {
-        println!("I am docker 2");
+        println!("{}", "I am docker 2".yellow());
     });
 
-    BootstrapDockerNet::new("boot", [d1, d2, d3])
+    BootstrapDockerNet::new("bootstrapper", [d1, d2, d3])
         .run(Docker::connect_with_defaults)
         .await
 }
