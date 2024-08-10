@@ -1,5 +1,5 @@
 use bollard::Docker;
-use docker_bootstrapper::{ContainerBuilder, ContainerNetworkBuilder, ImageBuilder};
+use docker_bootstrapper::{ContainerNetworkBuilder, ImageBuilder};
 use dockerfiles::{DockerFile, From};
 
 #[tokio::test]

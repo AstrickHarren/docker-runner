@@ -2,7 +2,6 @@ use std::{
     env::{self},
     fmt::Display,
     path::Path,
-    sync::Arc,
 };
 
 use bollard::{
@@ -19,7 +18,7 @@ use color_eyre::owo_colors::OwoColorize;
 
 use futures::{Stream, TryStreamExt};
 
-use crate::{Image, ImageBuilder};
+use crate::ImageBuilder;
 
 impl<'a> ImageBuilder<'a> {
     pub fn into_container_builder(self, name: &'a str) -> ContainerBuilder<'a> {

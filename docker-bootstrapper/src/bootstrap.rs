@@ -5,7 +5,7 @@ use color_eyre::eyre::Error;
 use futures::{future::ready, Future, FutureExt};
 
 use crate::{
-    container, Container, ContainerBuilder, ContainerNetwork, ContainerNetworkBuilder, Image,
+    ContainerBuilder, ContainerNetworkBuilder,
 };
 
 pub struct ContainerFut<'a, O = ()> {
