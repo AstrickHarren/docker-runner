@@ -89,6 +89,6 @@ impl<'a> Styler<'a> {
         let g = g / 2 + mix.1 / 2;
         let b = b / 2 + mix.2 / 2;
 
-        Style::new().color(Rgb(r, g, b))
+        Style::new().color(Rgb(r, g, b)).bold()
     }
 }
