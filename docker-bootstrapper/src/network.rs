@@ -78,14 +78,22 @@ impl ContainerNetwork {
     pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
         let start = self.start(docker);
         let log = self.log(docker, true);
-        let wait = self.wait(docker);
         let cancel = ctrl_c()
             .map_err(|e| e.into())
             .inspect_ok(|_| Self::print_cancel_msg());
 
-        let log_wait_ctrlc =
-            select_all([log.and_then(|_| wait).boxed_local(), cancel.boxed_local()].into_iter())
-                .map(|(x, _, _)| x);
+        let log_wait_ctrlc = select_all(
+            [
+                // Log and then wait to make sure if container exited normally
+                log.and_then(|_| self.wait(docker)).boxed_local(),
+                // At the same time, if container exited early, abort entire network
+                self.wait(docker).boxed_local(),
+                // At the same time, if user hit interrupt, abort network
+                cancel.boxed_local(),
+            ]
+            .into_iter(),
+        )
+        .map(|(x, _, _)| x);
 
         let task: Result<_, Error> = try {
             start.await?;

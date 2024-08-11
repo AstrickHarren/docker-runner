@@ -29,7 +29,7 @@ impl<'a> Dialogger<'a> {
 
     pub fn log(mut self, id: &'a Container, msg: &str) -> Self {
         match self.current_id {
-            Some(x) if &x == &id => self.print_mid(msg),
+            Some(x) if x == id => self.print_mid(msg),
             Some(_) => {
                 self.print_end();
                 self.print_start(id, msg)
@@ -89,7 +89,6 @@ impl<'a> Styler<'a> {
         let g = g / 2 + mix.1 / 2;
         let b = b / 2 + mix.2 / 2;
 
-        let style = Style::new().color(Rgb(r, g, b));
-        style
+        Style::new().color(Rgb(r, g, b))
     }
 }

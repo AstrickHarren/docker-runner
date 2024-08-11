@@ -16,7 +16,7 @@ use color_eyre::eyre::{eyre, Error};
 
 use color_eyre::owo_colors::OwoColorize;
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 
 use crate::ImageBuilder;
 
