@@ -12,11 +12,11 @@ use bollard::{
     exec::{CreateExecOptions, StartExecResults},
     Docker,
 };
-use color_eyre::eyre::Error;
+use color_eyre::eyre::{eyre, Error};
 
 use color_eyre::owo_colors::OwoColorize;
 
-use futures::{Stream, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 
 use crate::ImageBuilder;
 
@@ -209,8 +209,16 @@ impl Container {
                     condition: "not-running",
                 }),
             )
-            .map_ok(|_| ()) // TODO: trace
-            .map_err(Error::from)
+            .map_err(|e| match e {
+                bollard::errors::Error::DockerContainerWaitError { error, code } => eyre!(
+                    "container {} exited with code {} {}",
+                    self.name,
+                    code,
+                    error
+                ),
+                e => Error::from(e),
+            })
+            .map_ok(|_| ())
             .try_collect::<()>()
             .await?;
         Ok(())

@@ -56,3 +56,39 @@ async fn bootstrapper() -> color_eyre::Result<()> {
         .run(Docker::connect_with_defaults)
         .await
 }
+
+#[tokio::test]
+async fn bootstrapper_panic() -> color_eyre::Result<()> {
+    color_eyre::install()?;
+    let dockerfile = DockerFile::new(From::image("alpine"));
+    let img = ImageBuilder::new(&dockerfile);
+
+    let d1 = img.into_container_builder("d1").with_wait(true).perform();
+    let d2 = img
+        .into_container_builder("d2")
+        .with_wait(true)
+        .perform()
+        .then(|_| async {
+            println!("{}", "I am docker 2, sleeping for 5 sec...".yellow());
+            sleep(Duration::from_secs(5)).await;
+            println!("{}", "sleep complete".blue());
+        });
+    let d3 = img
+        .into_container_builder("d3")
+        .with_wait(true)
+        .perform()
+        .then(|_| async {
+            println!("{}", "I am docker 3, sleeping for 1 sec...".blue());
+            sleep(Duration::from_secs(1)).await;
+            println!("{}", "I'm going to panic now".red());
+            panic!("test panic");
+        });
+
+    let d1 = d1.then(|_| async {
+        println!("{}", "I am docker 1".green());
+    });
+
+    BootstrapDockerNet::new("bootstrapper", [d1, d2, d3])
+        .run(Docker::connect_with_defaults)
+        .await
+}

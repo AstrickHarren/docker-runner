@@ -1,8 +1,11 @@
+mod dialog;
+
 use bollard::{network::CreateNetworkOptions, Docker};
 use color_eyre::{
     eyre::Error,
     owo_colors::{OwoColorize, Style},
 };
+use dialog::Dialogger;
 use futures::{
     future::select_all,
     stream::{self, FuturesUnordered},
@@ -81,7 +84,7 @@ impl ContainerNetwork {
             .inspect_ok(|_| Self::print_cancel_msg());
 
         let log_wait_ctrlc =
-            select_all([log.boxed_local(), wait.boxed_local(), cancel.boxed_local()].into_iter())
+            select_all([log.and_then(|_| wait).boxed_local(), cancel.boxed_local()].into_iter())
                 .map(|(x, _, _)| x);
 
         let task: Result<_, Error> = try {
@@ -109,14 +112,10 @@ impl ContainerNetwork {
                 .map(|c| c.log(docker, follow).map_ok(move |x| (c, x))),
         )
         .flatten_unordered(None)
-        // NOTE: should I use try_for_each_concurrent instead?
-        .try_fold(Dialogger::default(), |mut logger, (c, l)| async move {
+        .try_fold(Dialogger::default(), |logger, (c, l)| async move {
             match l.to_string().trim() {
                 "" => Ok(logger),
-                l => {
-                    logger.log(c, l.to_string().trim());
-                    Ok(logger.with_id(c))
-                }
+                l => Ok(logger.log(c, l.to_string().trim())),
             }
         })
         .await?
@@ -153,51 +152,5 @@ impl ContainerNetwork {
         let hint = "Hint".style(Style::new().yellow().bold());
         println!("\n\t{canceling} due to {interrupt}: cleaning lingering {docker} resources...");
         println!("\t{hint}: hit interrupt again to force quit");
-    }
-}
-
-#[derive(Default)]
-struct Dialogger<'a> {
-    dia_len: usize,
-    current_id: Option<&'a Container>,
-}
-
-impl<'a> Dialogger<'a> {
-    fn print_start(id: &Container, msg: &str) {
-        println!("{:<20}{}", id.name(), msg)
-    }
-
-    fn print_mid(msg: &str) {
-        println!("{:<20}{}", " ┃", msg)
-    }
-
-    fn print_end(&self) {
-        if self.dia_len > 0 {
-            println!(" ┗━━");
-        }
-    }
-
-    fn with_id(self, id: &'a Container) -> Self {
-        let dia_len = if self.current_id == Some(id) {
-            self.dia_len + 1
-        } else {
-            0
-        };
-
-        Self {
-            dia_len,
-            current_id: id.into(),
-        }
-    }
-
-    fn log(&mut self, id: &Container, msg: &str) {
-        match self.current_id {
-            Some(x) if &x == &id => Self::print_mid(msg),
-            Some(_) => {
-                self.print_end();
-                Self::print_start(id, msg)
-            }
-            None => Self::print_start(id, msg),
-        };
     }
 }
