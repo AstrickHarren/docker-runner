@@ -10,10 +10,9 @@ async fn main() -> color_eyre::Result<()> {
     let img = ImageBuilder::new(&df);
 
     let hello = img
-        .into_container_builder("greeter")
+        .to_container("greeter")
         .with_wait(true)
-        .perform()
-        .then(|_| async {
+        .start_with(async {
             println!("{}", "hello, world".green().bold());
         });
 

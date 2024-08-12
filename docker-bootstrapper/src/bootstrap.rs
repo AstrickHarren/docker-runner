@@ -4,9 +4,7 @@ use bollard::Docker;
 use color_eyre::eyre::Error;
 use futures::{future::ready, Future, FutureExt};
 
-use crate::{
-    ContainerBuilder, ContainerNetworkBuilder,
-};
+use crate::{ContainerBuilder, ContainerNetworkBuilder};
 
 pub struct ContainerFut<'a, O = ()> {
     fut: Pin<Box<dyn Future<Output = O>>>,
@@ -14,8 +12,15 @@ pub struct ContainerFut<'a, O = ()> {
 }
 
 impl<'a> ContainerBuilder<'a> {
-    pub fn perform(self) -> ContainerFut<'a> {
+    pub fn start(self) -> ContainerFut<'a> {
         ContainerFut::new(self)
+    }
+
+    pub fn start_with<O>(self, code: impl Future<Output = O> + 'static) -> ContainerFut<'a, O> {
+        ContainerFut {
+            fut: code.boxed_local(),
+            container: self,
+        }
     }
 }
 

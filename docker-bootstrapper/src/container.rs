@@ -21,7 +21,7 @@ use futures::{Stream, TryStreamExt};
 use crate::ImageBuilder;
 
 impl<'a> ImageBuilder<'a> {
-    pub fn into_container_builder(self, name: &'a str) -> ContainerBuilder<'a> {
+    pub fn to_container(self, name: &'a str) -> ContainerBuilder<'a> {
         ContainerBuilder::new(name, self)
     }
 }

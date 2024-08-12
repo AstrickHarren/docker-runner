@@ -14,7 +14,7 @@ async fn bare_bootstrap() -> color_eyre::Result<()> {
 
     let img = ImageBuilder::new(&dockerfile);
     let container = img
-        .into_container_builder("test_bootstrap")
+        .to_container("test_bootstrap")
         .with_bootstrap()
         .build(&docker)
         .await?;
@@ -33,12 +33,12 @@ async fn bootstrapper() -> color_eyre::Result<()> {
     let dockerfile = DockerFile::new(From::image("alpine"));
     let img = ImageBuilder::new(&dockerfile);
 
-    let d1 = img.into_container_builder("d1").with_wait(true).perform();
-    let d2 = img.into_container_builder("d2").with_wait(true).perform();
+    let d1 = img.to_container("d1").with_wait(true).start();
+    let d2 = img.to_container("d2").with_wait(true).start();
     let d3 = img
-        .into_container_builder("d3")
+        .to_container("d3")
         .with_wait(true)
-        .perform()
+        .start()
         .then(|_| async {
             println!("{}", "I am docker 3, sleeping for 1 sec...".blue());
             sleep(Duration::from_secs(1)).await;
@@ -68,20 +68,20 @@ async fn bootstrapper_panic() -> color_eyre::Result<()> {
     let dockerfile = DockerFile::new(From::image("alpine"));
     let img = ImageBuilder::new(&dockerfile);
 
-    let d1 = img.into_container_builder("d1").with_wait(true).perform();
+    let d1 = img.to_container("d1").with_wait(true).start();
     let d2 = img
-        .into_container_builder("d2")
+        .to_container("d2")
         .with_wait(true)
-        .perform()
+        .start()
         .then(|_| async {
             println!("{}", "I am docker 2, sleeping for 5 sec...".yellow());
             sleep(Duration::from_secs(5)).await;
             println!("{}", "sleep complete".blue());
         });
     let d3 = img
-        .into_container_builder("d3")
+        .to_container("d3")
         .with_wait(true)
-        .perform()
+        .start()
         .then(|_| async {
             println!("{}", "I am docker 3, sleeping for 1 sec...".blue());
             sleep(Duration::from_secs(1)).await;

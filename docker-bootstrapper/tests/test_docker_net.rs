@@ -10,7 +10,7 @@ async fn net_no_wait() -> color_eyre::Result<()> {
 
     let p = |name| {
         ImageBuilder::new(&alpine)
-            .into_container_builder(name)
+            .to_container(name)
             .with_cmd("ls -al /".split(" "))
             .with_wait(true)
     };
@@ -20,7 +20,7 @@ async fn net_no_wait() -> color_eyre::Result<()> {
     let p3 = p("p3");
     let df = DockerFile::new(From::image("postgres"));
     let postgres = ImageBuilder::new(&df)
-        .into_container_builder("postgres")
+        .to_container("postgres")
         .with_wait(false)
         .with_env("POSTGRES_PASSWORD", "postgres");
     let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, postgres]);
@@ -37,7 +37,7 @@ async fn net_wait() -> color_eyre::Result<()> {
 
     let p = |name| {
         ImageBuilder::new(&alpine)
-            .into_container_builder(name)
+            .to_container(name)
             .with_cmd("ls -al /".split(" "))
             .with_wait(true)
     };
@@ -47,7 +47,7 @@ async fn net_wait() -> color_eyre::Result<()> {
     let p3 = p("p3");
     let df = DockerFile::new(From::image("postgres"));
     let postgres = ImageBuilder::new(&df)
-        .into_container_builder("postgres")
+        .to_container("postgres")
         .with_wait(true)
         .with_env("POSTGRES_PASSWORD", "postgres");
     let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2, p3, postgres]);
@@ -63,11 +63,11 @@ async fn net_double_postgres() -> color_eyre::Result<()> {
     let postgres = DockerFile::new(From::image("postgres"));
 
     let p1 = ImageBuilder::new(&postgres)
-        .into_container_builder("p1")
+        .to_container("p1")
         .with_wait(true)
         .with_env("POSTGRES_PASSWORD", "postgres");
     let p2 = ImageBuilder::new(&postgres)
-        .into_container_builder("p2")
+        .to_container("p2")
         .with_wait(true)
         .with_env("POSTGRES_PASSWORD", "postgres");
     let network = ContainerNetworkBuilder::new("test").with_containers([p1, p2]);
@@ -84,11 +84,11 @@ async fn net_postgres_delay() -> color_eyre::Result<()> {
     let alpine = DockerFile::new(From::image("alpine"));
 
     let p1 = ImageBuilder::new(&postgres)
-        .into_container_builder("p1")
+        .to_container("p1")
         .with_wait(true)
         .with_env("POSTGRES_PASSWORD", "postgres");
     let delay = ImageBuilder::new(&alpine)
-        .into_container_builder("delay")
+        .to_container("delay")
         .with_cmd(["sh", "-c", "sleep 5; echo hello"])
         .with_wait(true);
     let network = ContainerNetworkBuilder::new("test").with_containers([p1, delay]);

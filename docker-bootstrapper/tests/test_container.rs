@@ -8,7 +8,7 @@ async fn container_ls() -> color_eyre::Result<()> {
     let docker = Docker::connect_with_defaults()?;
     let dockerfile = DockerFile::new(From::image("alpine"));
     let container = ImageBuilder::new(&dockerfile)
-        .into_container_builder("test_container_ls")
+        .to_container("test_container_ls")
         .with_cmd("ls -al /".split(" "))
         .build(&docker)
         .await?;
@@ -26,7 +26,7 @@ async fn container_postgres() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let docker = Docker::connect_with_defaults()?;
     let container = ImageBuilder::new(&DockerFile::new(From::image("postgres")))
-        .into_container_builder("postgres")
+        .to_container("postgres")
         .with_env("POSTGRES_PASSWORD", "postgres")
         .build(&docker)
         .await?;
