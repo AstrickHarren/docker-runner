@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     env::{self},
     fmt::Display,
     path::Path,
@@ -20,22 +21,22 @@ use futures::{Stream, TryStreamExt};
 
 use crate::ImageBuilder;
 
-impl<'a> ImageBuilder<'a> {
-    pub fn to_container(self, name: &'a str) -> ContainerBuilder<'a> {
+impl<'a, T> ImageBuilder<T> {
+    pub fn to_container(self, name: &'a str) -> ContainerBuilder<T> {
         ContainerBuilder::new(name, self)
     }
 }
 
-pub struct ContainerBuilder<'a> {
-    image: ImageBuilder<'a>,
+pub struct ContainerBuilder<'a, T> {
+    image: ImageBuilder<T>,
     opts: CreateContainerOptions<&'a str>,
     config: Config<String>,
     /// If is waited for the docker network before it removes this container with it finishing its execution
     is_waited: bool,
 }
 
-impl<'a> ContainerBuilder<'a> {
-    pub fn new(name: &'a str, image_builder: ImageBuilder<'a>) -> Self {
+impl<'a, T> ContainerBuilder<'a, T> {
+    pub fn new(name: &'a str, image_builder: ImageBuilder<T>) -> Self {
         Self {
             opts: CreateContainerOptions {
                 name,
@@ -104,7 +105,10 @@ impl<'a> ContainerBuilder<'a> {
             .with_cmd([exe.to_string_lossy().into_owned()].into_iter().chain(args))
     }
 
-    pub async fn build(mut self, docker: &Docker) -> Result<Container, Error> {
+    pub async fn build<'b>(mut self, docker: &Docker) -> Result<Container, Error>
+    where
+        T: Into<Cow<'b, str>>,
+    {
         let name = self.opts.name.to_string();
         self.config.image = Some(self.image.build(docker).await?.id);
         let info = docker

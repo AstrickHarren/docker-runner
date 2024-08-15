@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 use docker_derive::Instruction;
 use itertools::Itertools;
@@ -141,6 +141,12 @@ impl Display for DockerFile {
             writeln!(f, "{}", p)?;
         }
         Ok(())
+    }
+}
+
+impl std::convert::From<&DockerFile> for Cow<'_, str> {
+    fn from(value: &DockerFile) -> Self {
+        value.to_string().into()
     }
 }
 

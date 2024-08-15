@@ -1,4 +1,4 @@
-use std::{collections::HashMap, pin::Pin};
+use std::{borrow::Cow, collections::HashMap, pin::Pin};
 
 use bollard::Docker;
 use color_eyre::eyre::Error;
@@ -6,17 +6,17 @@ use futures::{future::ready, Future, FutureExt};
 
 use crate::{ContainerBuilder, ContainerNetworkBuilder};
 
-pub struct ContainerFut<'a, O = ()> {
+pub struct ContainerFut<'a, T, O = ()> {
     fut: Pin<Box<dyn Future<Output = O>>>,
-    container: ContainerBuilder<'a>,
+    container: ContainerBuilder<'a, T>,
 }
 
-impl<'a> ContainerBuilder<'a> {
-    pub fn start(self) -> ContainerFut<'a> {
+impl<'a, T> ContainerBuilder<'a, T> {
+    pub fn start(self) -> ContainerFut<'a, T> {
         ContainerFut::new(self)
     }
 
-    pub fn start_with<O>(self, code: impl Future<Output = O> + 'static) -> ContainerFut<'a, O> {
+    pub fn start_with<O>(self, code: impl Future<Output = O> + 'static) -> ContainerFut<'a, T, O> {
         ContainerFut {
             fut: code.boxed_local(),
             container: self,
@@ -24,8 +24,8 @@ impl<'a> ContainerBuilder<'a> {
     }
 }
 
-impl<'a> ContainerFut<'a> {
-    pub fn new(container_builder: ContainerBuilder<'a>) -> ContainerFut<'a> {
+impl<'a, T> ContainerFut<'a, T> {
+    pub fn new(container_builder: ContainerBuilder<'a, T>) -> ContainerFut<'a, T> {
         ContainerFut {
             fut: ready(()).boxed_local(),
             container: container_builder,
@@ -33,8 +33,8 @@ impl<'a> ContainerFut<'a> {
     }
 }
 
-impl<'a, O> ContainerFut<'a, O> {
-    pub fn map<F, A>(self, f: F) -> ContainerFut<'a, A>
+impl<'a, T, O> ContainerFut<'a, T, O> {
+    pub fn map<F, A>(self, f: F) -> ContainerFut<'a, T, A>
     where
         O: 'static,
         A: 'static,
@@ -47,7 +47,7 @@ impl<'a, O> ContainerFut<'a, O> {
         }
     }
 
-    pub fn then<F, Fut>(self, f: F) -> ContainerFut<'a, Fut::Output>
+    pub fn then<F, Fut>(self, f: F) -> ContainerFut<'a, T, Fut::Output>
     where
         O: 'static,
         F: FnOnce(O) -> Fut + 'static,
@@ -62,22 +62,26 @@ impl<'a, O> ContainerFut<'a, O> {
 }
 
 #[must_use = "Bootstrapper doesn't run if not consumed"]
-pub struct BootstrapDockerNet<'a> {
+pub struct BootstrapDockerNet<'a, T> {
     name: &'a str,
-    container_futs: HashMap<usize, ContainerFut<'a>>,
+    container_futs: HashMap<usize, ContainerFut<'a, T>>,
 }
 
-impl<'a> BootstrapDockerNet<'a> {
-    pub fn new(name: &'a str, containers: impl IntoIterator<Item = ContainerFut<'a>>) -> Self {
+impl<'a, T> BootstrapDockerNet<'a, T> {
+    pub fn new(name: &'a str, containers: impl IntoIterator<Item = ContainerFut<'a, T>>) -> Self {
         Self {
             name,
             container_futs: containers.into_iter().enumerate().collect(),
         }
     }
 
-    pub async fn run<E>(mut self, docker: impl FnOnce() -> Result<Docker, E>) -> Result<(), Error>
+    pub async fn run<'b, E>(
+        mut self,
+        docker: impl FnOnce() -> Result<Docker, E>,
+    ) -> Result<(), Error>
     where
         E: std::error::Error + Send + Sync + 'static,
+        T: Into<Cow<'b, str>>,
     {
         match Runner::from_env() {
             Runner::ContainerId(id) => self.container_futs.remove(&id).unwrap().fut.await,
@@ -86,7 +90,10 @@ impl<'a> BootstrapDockerNet<'a> {
         Ok(())
     }
 
-    async fn master_run(self, docker: &Docker) -> Result<(), Error> {
+    async fn master_run<'b>(self, docker: &Docker) -> Result<(), Error>
+    where
+        T: Into<Cow<'b, str>>,
+    {
         let net_builder = ContainerNetworkBuilder::new(self.name);
         let containers = self.container_futs.into_iter().map(|(id, c)| {
             c.container

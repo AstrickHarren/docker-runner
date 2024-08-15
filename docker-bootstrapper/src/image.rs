@@ -1,21 +1,23 @@
 use color_eyre::eyre::Error;
-use std::io::Write;
+use std::{borrow::Cow, io::Write};
 
 use bollard::{image::BuildImageOptions, Docker};
-use dockerfiles::DockerFile;
 use futures::{future::ready, TryStreamExt};
 
 #[derive(Clone, Copy)]
-pub struct ImageBuilder<'a> {
-    docker_file: &'a DockerFile,
+pub struct ImageBuilder<T> {
+    docker_file: T,
 }
 
-impl<'a> ImageBuilder<'a> {
-    pub fn new(docker_file: &'a DockerFile) -> Self {
+impl<T> ImageBuilder<T> {
+    pub fn new(docker_file: T) -> Self {
         Self { docker_file }
     }
 
-    pub async fn build(self, docker: &Docker) -> Result<Image, Error> {
+    pub async fn build<'a>(self, docker: &Docker) -> Result<Image, Error>
+    where
+        T: Into<Cow<'a, str>>,
+    {
         let opts = BuildImageOptions {
             dockerfile: "Dockerfile",
             ..Default::default()
@@ -41,9 +43,12 @@ impl<'a> ImageBuilder<'a> {
         Ok(Image::new(id))
     }
 
-    fn create_docker_tarball(&self) -> Vec<u8> {
+    fn create_docker_tarball<'a>(self) -> Vec<u8>
+    where
+        T: Into<Cow<'a, str>>,
+    {
         let mut header = tar::Header::new_gnu();
-        let dockerfile = self.docker_file.to_string();
+        let dockerfile: Cow<_> = self.docker_file.into();
 
         header.set_path("Dockerfile").unwrap();
         header.set_size(dockerfile.len() as u64);

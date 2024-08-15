@@ -1,5 +1,7 @@
 mod dialog;
 
+use std::borrow::Cow;
+
 use bollard::{network::CreateNetworkOptions, Docker};
 use color_eyre::{
     eyre::Error,
@@ -14,12 +16,12 @@ use futures::{
 
 use crate::{utils::ctrl_c, Container, ContainerBuilder};
 
-pub struct ContainerNetworkBuilder<'a> {
+pub struct ContainerNetworkBuilder<'a, T> {
     opts: CreateNetworkOptions<&'a str>,
-    containers: Vec<ContainerBuilder<'a>>,
+    containers: Vec<ContainerBuilder<'a, T>>,
 }
 
-impl<'a> ContainerNetworkBuilder<'a> {
+impl<'a, T> ContainerNetworkBuilder<'a, T> {
     pub fn new(name: &'a str) -> Self {
         Self {
             opts: CreateNetworkOptions {
@@ -34,19 +36,22 @@ impl<'a> ContainerNetworkBuilder<'a> {
         }
     }
 
-    pub fn add_container(&mut self, container: ContainerBuilder<'a>) {
+    pub fn add_container(&mut self, container: ContainerBuilder<'a, T>) {
         self.containers.push(container);
     }
 
     pub fn with_containers(
         mut self,
-        containers: impl IntoIterator<Item = ContainerBuilder<'a>>,
+        containers: impl IntoIterator<Item = ContainerBuilder<'a, T>>,
     ) -> Self {
         self.containers.extend(containers);
         self
     }
 
-    pub async fn build(self, docker: &Docker) -> Result<ContainerNetwork, Error> {
+    pub async fn build<'b>(self, docker: &Docker) -> Result<ContainerNetwork, Error>
+    where
+        T: Into<Cow<'b, str>>,
+    {
         // 1. create network
         let network = docker.create_network(self.opts).await?;
         network.warning.inspect(|x| eprintln!("{}", x));
