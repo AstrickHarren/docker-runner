@@ -4,10 +4,12 @@ Run your integrated test and binaries in multiple docker but with all of their c
 
 ## Note
 
-Only supports Linux for now with `musl` compilation target.
+- Greatly inspired by [super_orchestrator](https://github.com/AaronKutch/super_orchestrator)
+- Only supports Linux for now with `musl` compilation target.
 
 
 ## Roadmap
-- [ ] container network
-- [ ] logically node network
-- [ ] async bootstrapping
+- [x] container network
+- [x] async bootstrapping
+- [ ] stdin/out dashboard 
+
