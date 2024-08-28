@@ -28,7 +28,6 @@ impl<'a, T> ContainerNetworkBuilder<'a, T> {
                 name,
                 check_duplicate: true,
                 driver: "bridge",
-                internal: true,
                 // enable_ipv6: true,
                 ..Default::default()
             },
@@ -83,6 +82,7 @@ impl ContainerNetwork {
     pub async fn run(&self, docker: &Docker) -> Result<(), Error> {
         let start = self.start(docker);
         let log = self.log(docker, true);
+        let log_again = self.log(docker, false);
         let cancel = ctrl_c()
             .map_err(|e| e.into())
             .inspect_ok(|_| Self::print_cancel_msg());
@@ -98,7 +98,19 @@ impl ContainerNetwork {
             ]
             .into_iter(),
         )
-        .map(|(x, _, _)| x);
+        .then(|(x, i, _)| async move {
+            // if container exited early, print log again
+            if i == 1 {
+                println!(
+                    "\n{}",
+                    "=============== CONTAINER EXITED EARLY: LOGS ============= "
+                        .red()
+                        .bold()
+                );
+                log_again.await?;
+            }
+            x
+        });
 
         let task: Result<_, Error> = try {
             start.await?;
@@ -126,9 +138,9 @@ impl ContainerNetwork {
         )
         .flatten_unordered(None)
         .try_fold(Dialogger::default(), |logger, (c, l)| async move {
-            match l.to_string().trim() {
+            match l.to_string().trim_matches('\n') {
                 "" => Ok(logger),
-                l => Ok(logger.log(c, l.to_string().trim())),
+                l => Ok(logger.log(c, l.to_string().trim_matches('\n'))),
             }
         })
         .await?

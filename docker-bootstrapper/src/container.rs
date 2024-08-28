@@ -91,6 +91,11 @@ impl<'a, T> ContainerBuilder<'a, T> {
 
     pub fn with_bind_current_exe_dir(self, to_container: impl Display) -> Self {
         let exe = env::current_exe().unwrap();
+        println!(
+            "binding {} --> {}",
+            exe.parent().unwrap().to_string_lossy(),
+            to_container
+        );
         self.with_bind(exe.parent().unwrap().to_string_lossy(), to_container)
     }
 
